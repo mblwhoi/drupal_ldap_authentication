@@ -1,0 +1,193 @@
+<?php
+
+/**
+ * @file
+ * ldap_authentication module installation and upgrade code.
+ */
+
+//////////////////////////////////////////////////////////////////////////////
+// Core API hooks
+
+/**
+ * Implementation of hook_install().
+ */
+function ldap_authentication_install() {
+
+  // Install schema.
+  drupal_install_schema('ldap_authentication');
+
+  // Set variables.
+  variable_set('ldap_authentication_login_process',0);
+  variable_set('ldap_authentication_login_conflict',1);
+  variable_set('ldap_authentication_forget_passwords',TRUE);
+  variable_set('ldap_authentication_disable_pass_change',FALSE);
+  variable_set('ldap_authentication_alter_email_field',0);
+  variable_set('ldap_authentication_default_user_attr','uid');
+  variable_set('ldap_authentication_default_mail_attr','mail');
+
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function ldap_authentication_uninstall() {
+  // Remove tables.
+  drupal_uninstall_schema('ldap_authentication');
+
+  // Remove variables
+  variable_del('ldap_authentication_login_process');
+  variable_del('ldap_authentication_login_conflict');
+  variable_del('ldap_authentication_forget_passwords');
+  variable_del('ldap_authentication_disable_pass_change');
+  variable_del('ldap_authentication_alter_email_field');
+  variable_del('ldap_authentication_default_user_attr');
+  variable_del('ldap_authentication_default_mail_attr');
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Schema API hooks
+
+/**
+ * Implementation of hook_schema().
+ */
+function ldap_authentication_schema() {
+  $schema['ldap_authentication'] = array(
+    'fields' => array(
+      'sid' => array(
+        'type' => 'serial',
+        'size' => 'tiny',
+        'not null' => TRUE,
+      ),
+      'name' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ),
+      'status' => array(
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'server' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ),
+      'port' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 389,
+      ),
+      'tls' => array(
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'encrypted' => array(
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'basedn' => array(
+        'type' => 'text',
+      ),
+      'user_attr' => array(
+        'type' => 'varchar',
+        'length' => 255,
+      ),
+      'mail_attr' => array(
+        'type' => 'varchar',
+        'length' => 255,
+      ),
+      'binddn' => array(
+        'type' => 'varchar',
+        'length' => 255,
+      ),
+      'bindpw' => array(
+        'type' => 'varchar',
+        'length' => 255,
+      ),
+      'login_php' =>  array(
+        'type' => 'text',
+        'not null' => FALSE,
+      ),
+      'filter_php' =>  array(
+        'type' => 'text',
+        'not null' => FALSE,
+      ),
+      'weight' =>  array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'indexes' => array(
+      'sid' => array('sid'),
+    ),
+    'primary key' => array('name')
+  );
+
+
+  // Set export config.
+  $schema['ldap_authentication']['export'] = array(
+    'key' => 'name',
+    'key name' => 'Name',
+    'primary key' => 'sid',
+    'identifier' => 'ldap_server',
+    'default hook' => 'default_ldap_authentication',
+    'api' => array(
+      'owner' => 'ldap_authentication',
+      'api' => 'default_ldap_authentication',
+      'minimum_version' => 1,
+      'current_version' => 1,
+    )
+  );
+
+  // Don't export sid (db primary key)
+  $schema['ldap_authentication']['fields']['sid']['no export'] = TRUE;
+
+  return $schema;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Upgrades
+
+function ldap_authentication_update_6000() {
+  $ret = array();
+  $result = db_query("SELECT * FROM {ldap_authentication}");
+  while ($row = db_fetch_object($result)) {
+    $servers[$row->name] = $row->sid;
+  }
+  if (!empty($servers)) {
+    $result = db_query("SELECT uid FROM {users} WHERE uid > '1'");
+    while ($row = db_fetch_object($result)) {
+      $account = user_load($row->uid);
+      if ($account->ldap_config && in_array($account->ldap_config, array_keys($servers))) {
+        user_save($account, array('ldap_config' => $servers[$account->ldap_config]));
+      }
+    }
+  }
+  return $ret;
+}
+
+function ldap_authentication_update_6001() {
+  $ret = array();
+  db_add_field($ret, 'ldap_authentication', 'login_php',  array(
+    'type' => 'text',
+    'not null' => FALSE,
+  ));
+  db_add_field($ret, 'ldap_authentication', 'filter_php',  array(
+    'type' => 'text',
+    'not null' => FALSE,
+  ));
+  db_add_field($ret, 'ldap_authentication', 'weight',  array(
+    'type' => 'int',
+    'not null' => TRUE,
+    'default' => 0,
+  ));
+  return $ret;
+}
+

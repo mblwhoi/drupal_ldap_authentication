@@ -1,0 +1,10 @@
+; $Id: ldap_authentication.info,v 1.2.4.15 2009/03/24 10:07:59 miglius Exp $
+name = LDAP Authentication
+description = Implements LDAP authentication.
+package = LDAP
+core = 6.x
+php = 5.0
+
+
+
+
